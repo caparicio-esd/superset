@@ -26,7 +26,7 @@ import { useSelector } from 'react-redux';
 import { UserWithPermissionsAndRoles } from 'src/types/bootstrapTypes';
 import LanguagePicker from './LanguagePicker';
 import DatabaseModal from '../CRUD/data/database/DatabaseModal';
-import { checkUploadExtensions } from '../CRUD/utils';
+import { uploadUserPerms } from '../CRUD/utils';
 import {
   ExtentionConfigs,
   GlobalMenuDataOptions,
@@ -79,12 +79,22 @@ const RightMenu = ({
     ALLOWED_EXTENSIONS,
     HAS_GSHEETS_INSTALLED,
   } = useSelector<any, ExtentionConfigs>(state => state.common.conf);
-
   const [showModal, setShowModal] = useState<boolean>(false);
   const [engine, setEngine] = useState<string>('');
   const canSql = findPermission('can_sqllab', 'Superset', roles);
   const canDashboard = findPermission('can_write', 'Dashboard', roles);
   const canChart = findPermission('can_write', 'Chart', roles);
+  const canDatabase = findPermission('can_write', 'Database', roles);
+
+  const { canUploadCSV, canUploadColumnar, canUploadExcel } = uploadUserPerms(
+    roles,
+    CSV_EXTENSIONS,
+    COLUMNAR_EXTENSIONS,
+    EXCEL_EXTENSIONS,
+    ALLOWED_EXTENSIONS,
+  );
+
+  const canUpload = canUploadCSV || canUploadColumnar || canUploadExcel;
   const showActionDropdown = canSql || canChart || canDashboard;
   const dropdownItems: MenuObjectProps[] = [
     {
@@ -94,30 +104,30 @@ const RightMenu = ({
         {
           label: t('Connect database'),
           name: GlobalMenuDataOptions.DB_CONNECTION,
-          perm: true,
+          perm: canDatabase,
         },
         {
           label: t('Connect Google Sheet'),
           name: GlobalMenuDataOptions.GOOGLE_SHEETS,
-          perm: HAS_GSHEETS_INSTALLED,
+          perm: canDatabase && HAS_GSHEETS_INSTALLED,
         },
         {
           label: t('Upload CSV to database'),
           name: 'Upload a CSV',
           url: '/csvtodatabaseview/form',
-          perm: CSV_EXTENSIONS,
+          perm: canUploadCSV,
         },
         {
           label: t('Upload columnar file to database'),
           name: 'Upload a Columnar file',
           url: '/columnartodatabaseview/form',
-          perm: COLUMNAR_EXTENSIONS,
+          perm: canUploadColumnar,
         },
         {
           label: t('Upload Excel file to database'),
           name: 'Upload Excel',
           url: '/exceltodatabaseview/form',
-          perm: EXCEL_EXTENSIONS,
+          perm: canUploadExcel,
         },
       ],
     },
@@ -183,16 +193,14 @@ const RightMenu = ({
           >
             {dropdownItems.map(menu => {
               if (menu.childs) {
-                return (
+                return canDatabase || canUpload ? (
                   <SubMenu
                     key="sub2"
                     className="data-menu"
                     title={menuIconAndLabel(menu)}
                   >
                     {menu.childs.map((item, idx) =>
-                      typeof item !== 'string' &&
-                      item.name &&
-                      checkUploadExtensions(item.perm, ALLOWED_EXTENSIONS) ? (
+                      typeof item !== 'string' && item.name && item.perm ? (
                         <>
                           {idx === 2 && <Menu.Divider />}
                           <Menu.Item key={item.name}>
@@ -206,7 +214,7 @@ const RightMenu = ({
                       ) : null,
                     )}
                   </SubMenu>
-                );
+                ) : null;
               }
               return (
                 findPermission(
